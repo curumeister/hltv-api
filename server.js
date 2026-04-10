@@ -8,6 +8,7 @@ app.use(cors());
 
 const HLTV_URL = "https://www.hltv.org/matches?predefinedFilter=live";
 
+// cache simples
 let cache = { data: [], ts: 0 };
 const TTL = 30000;
 
