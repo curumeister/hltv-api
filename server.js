@@ -1,0 +1,70 @@
+const express = require("express");
+const axios = require("axios");
+const cheerio = require("cheerio");
+const cors = require("cors");
+
+const app = express();
+app.use(cors());
+
+const HLTV_URL = "https://www.hltv.org/matches?predefinedFilter=live";
+
+let cache = { data: [], ts: 0 };
+const TTL = 30000;
+
+async function fetchHLTV() {
+  const { data: html } = await axios.get(HLTV_URL, {
+    headers: { "User-Agent": "Mozilla/5.0" },
+  });
+
+  const $ = cheerio.load(html);
+  const matches = [];
+
+  $(".liveMatch-container").each((_, el) => {
+    const team1 = $(el).find(".matchTeamName").first().text().trim();
+    const team2 = $(el).find(".matchTeamName").last().text().trim();
+    const score = $(el).find(".matchScore").text().trim();
+    const map = $(el).find(".matchMeta").text().trim();
+
+    if (team1 && team2) {
+      matches.push({
+        team1,
+        team2,
+        score: score || "0-0",
+        map: map || "",
+      });
+    }
+  });
+
+  return matches.slice(0, 3);
+}
+
+app.get("/api/live-cs", async (req, res) => {
+  try {
+    const now = Date.now();
+
+    if (now - cache.ts < TTL && cache.data.length) {
+      return res.json({ source: "cache", games: cache.data });
+    }
+
+    const games = await fetchHLTV();
+
+    cache = { data: games, ts: now };
+
+    res.json({ source: "live", games });
+  } catch (err) {
+    console.error(err);
+
+    res.json({
+      source: "fallback",
+      games: cache.data.length
+        ? cache.data
+        : [{ team1: "CS", team2: "OFF", score: "-", map: "" }],
+    });
+  }
+});
+
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log("rodando na porta", PORT);
+});
