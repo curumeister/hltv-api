@@ -1,96 +1,54 @@
 const express = require("express");
-const axios = require("axios");
 const cors = require("cors");
+const axios = require("axios");
+const cheerio = require("cheerio");
 
 const app = express();
 app.use(cors());
 
-const API_KEY = "JAHyrkMMbX2fOe6Z2SWdqvlim4dvA-oldqtkTujuXsQoS6UyUBQ";
+async function getMatches(){
 
-/* ===== BUSCAR MATCHES ===== */
-async function fetchMatches() {
-  try {
-    const [liveRes, upcomingRes] = await Promise.all([
-      axios.get(`https://api.pandascore.co/csgo/matches/running?token=${API_KEY}`),
-      axios.get(`https://api.pandascore.co/csgo/matches/upcoming?token=${API_KEY}`)
-    ]);
+  try{
+    const { data } = await axios.get("https://www.hltv.org/matches");
 
-    const live = [];
-    const upcoming = [];
+    const $ = cheerio.load(data);
 
-    /* ===== LIVE ===== */
-    liveRes.data.forEach(match => {
-      const team1 = match.opponents?.[0]?.opponent?.name || "TBD";
-      const team2 = match.opponents?.[1]?.opponent?.name || "TBD";
+    const matches = [];
 
-      const league = match.league?.name || "CS Event";
+    $(".liveMatch-container").each((i, el)=>{
 
-      let map = "";
-      if (match.games?.length) {
-        map = match.games[0]?.map || "";
-      }
+      const team1 = $(el).find(".matchTeamName").eq(0).text().trim();
+      const team2 = $(el).find(".matchTeamName").eq(1).text().trim();
 
-      const score1 = match.results?.[0]?.score ?? 0;
-      const score2 = match.results?.[1]?.score ?? 0;
+      const score = $(el).find(".matchScore").text().trim();
 
-      live.push({
+      const event = $(el).find(".matchEventName").text().trim();
+      const map = $(el).find(".matchMeta").text().trim();
+
+      matches.push({
         team1,
         team2,
-        score: `${score1}-${score2}`,
-        map,
-        league
+        score,
+        league: event,
+        map
       });
     });
 
-    /* ===== UPCOMING ===== */
-    upcomingRes.data.forEach(match => {
-      const team1 = match.opponents?.[0]?.opponent?.name || "TBD";
-      const team2 = match.opponents?.[1]?.opponent?.name || "TBD";
+    return matches;
 
-      const league = match.league?.name || "CS Event";
-
-      const time = match.begin_at
-        ? new Date(match.begin_at).toLocaleTimeString("pt-BR", {
-            hour: "2-digit",
-            minute: "2-digit"
-          })
-        : "soon";
-
-      upcoming.push({
-        team1,
-        team2,
-        time,
-        league
-      });
-    });
-
-    return {
-      live: live.slice(0, 2),
-      upcoming: upcoming.slice(0, 3)
-    };
-
-  } catch (err) {
-    console.log("Erro:", err.message);
-
-    return {
-      live: [],
-      upcoming: [
-        {
-          team1: "CS",
-          team2: "Sem dados",
-          time: "--:--",
-          league: "Offline"
-        }
-      ]
-    };
+  }catch(err){
+    console.log("Erro scraping:", err.message);
+    return [];
   }
 }
 
-/* ===== API ===== */
-app.get("/api/cs", async (req, res) => {
-  const data = await fetchMatches();
-  res.json(data);
+app.get("/api/cs", async (req,res)=>{
+  const live = await getMatches();
+
+  res.json({
+    live,
+    upcoming:[]
+  });
 });
 
-/* ===== START ===== */
 app.listen(process.env.PORT || 3000);
