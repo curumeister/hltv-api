@@ -5,8 +5,7 @@ const cors = require("cors");
 const app = express();
 app.use(cors());
 
-/* 🔑 SUA API KEY */
-const API_KEY = "JAHyrkMMbX2fOe6Z2SWdqvlim4dvA-oldqtkTujuXsQoS6UyUBQ";
+const API_KEY = "COLOQUE_SUA_API_KEY_AQUI";
 
 /* ===== BUSCAR PARTIDAS ===== */
 async function fetchMatches() {
@@ -28,6 +27,15 @@ async function fetchMatches() {
 
       if (!team1 || !team2) return;
 
+      /* 🏆 CAMPEONATO */
+      const league = match.league?.name || "CS Event";
+
+      /* 🗺 MAPA (pega primeiro mapa disponível) */
+      let map = "";
+      if (match.games && match.games.length) {
+        map = match.games[0]?.map || "";
+      }
+
       /* 🔴 AO VIVO */
       if (match.status === "running") {
         const score1 = match.results?.[0]?.score ?? 0;
@@ -36,7 +44,9 @@ async function fetchMatches() {
         live.push({
           team1,
           team2,
-          score: `${score1}-${score2}`
+          score: `${score1}-${score2}`,
+          map,
+          league
         });
       }
 
@@ -52,7 +62,8 @@ async function fetchMatches() {
         upcoming.push({
           team1,
           team2,
-          time
+          time,
+          league
         });
       }
     });
