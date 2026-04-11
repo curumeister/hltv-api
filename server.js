@@ -5,67 +5,63 @@ const cors = require("cors");
 const app = express();
 app.use(cors());
 
-const API_KEY = "COLOQUE_SUA_API_KEY_AQUI";
+const API_KEY = "JAHyrkMMbX2fOe6Z2SWdqvlim4dvA-oldqtkTujuXsQoS6UyUBQ";
 
-/* ===== BUSCAR PARTIDAS ===== */
+/* ===== BUSCAR MATCHES ===== */
 async function fetchMatches() {
   try {
-    const { data } = await axios.get(
-      `https://api.pandascore.co/csgo/matches?per_page=20&token=${API_KEY}`
-    );
+    const [liveRes, upcomingRes] = await Promise.all([
+      axios.get(`https://api.pandascore.co/csgo/matches/running?token=${API_KEY}`),
+      axios.get(`https://api.pandascore.co/csgo/matches/upcoming?token=${API_KEY}`)
+    ]);
 
     const live = [];
     const upcoming = [];
 
-    data.forEach(match => {
-      const opponents = match.opponents || [];
+    /* ===== LIVE ===== */
+    liveRes.data.forEach(match => {
+      const team1 = match.opponents?.[0]?.opponent?.name || "TBD";
+      const team2 = match.opponents?.[1]?.opponent?.name || "TBD";
 
-      if (opponents.length < 2) return;
-
-      const team1 = opponents[0]?.opponent?.name;
-      const team2 = opponents[1]?.opponent?.name;
-
-      if (!team1 || !team2) return;
-
-      /* 🏆 CAMPEONATO */
       const league = match.league?.name || "CS Event";
 
-      /* 🗺 MAPA (pega primeiro mapa disponível) */
       let map = "";
-      if (match.games && match.games.length) {
+      if (match.games?.length) {
         map = match.games[0]?.map || "";
       }
 
-      /* 🔴 AO VIVO */
-      if (match.status === "running") {
-        const score1 = match.results?.[0]?.score ?? 0;
-        const score2 = match.results?.[1]?.score ?? 0;
+      const score1 = match.results?.[0]?.score ?? 0;
+      const score2 = match.results?.[1]?.score ?? 0;
 
-        live.push({
-          team1,
-          team2,
-          score: `${score1}-${score2}`,
-          map,
-          league
-        });
-      }
+      live.push({
+        team1,
+        team2,
+        score: `${score1}-${score2}`,
+        map,
+        league
+      });
+    });
 
-      /* ⏱ FUTURO */
-      if (match.status === "not_started") {
-        const time = match.begin_at
-          ? new Date(match.begin_at).toLocaleTimeString("pt-BR", {
-              hour: "2-digit",
-              minute: "2-digit"
-            })
-          : "--:--";
+    /* ===== UPCOMING ===== */
+    upcomingRes.data.forEach(match => {
+      const team1 = match.opponents?.[0]?.opponent?.name || "TBD";
+      const team2 = match.opponents?.[1]?.opponent?.name || "TBD";
 
-        upcoming.push({
-          team1,
-          team2,
-          time,
-          league
-        });
-      }
+      const league = match.league?.name || "CS Event";
+
+      const time = match.begin_at
+        ? new Date(match.begin_at).toLocaleTimeString("pt-BR", {
+            hour: "2-digit",
+            minute: "2-digit"
+          })
+        : "soon";
+
+      upcoming.push({
+        team1,
+        team2,
+        time,
+        league
+      });
     });
 
     return {
@@ -74,20 +70,27 @@ async function fetchMatches() {
     };
 
   } catch (err) {
-    console.log("Erro PandaScore:", err.message);
-    return { live: [], upcoming: [] };
+    console.log("Erro:", err.message);
+
+    return {
+      live: [],
+      upcoming: [
+        {
+          team1: "CS",
+          team2: "Sem dados",
+          time: "--:--",
+          league: "Offline"
+        }
+      ]
+    };
   }
 }
 
-/* ===== ROTA ===== */
+/* ===== API ===== */
 app.get("/api/cs", async (req, res) => {
   const data = await fetchMatches();
   res.json(data);
 });
 
 /* ===== START ===== */
-const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, () => {
-  console.log("Servidor rodando na porta", PORT);
-});
+app.listen(process.env.PORT || 3000);
