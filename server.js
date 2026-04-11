@@ -8,54 +8,71 @@ app.use(cors());
 
 const URL = "https://www.hltv.org/matches";
 
-/* FUNÇÃO PRINCIPAL */
+/* ===== FETCH MATCHES ===== */
 async function fetchMatches() {
-  const { data } = await axios.get(URL, {
-    headers: { "User-Agent": "Mozilla/5.0" }
-  });
+  try {
+    const { data } = await axios.get(URL, {
+      headers: { "User-Agent": "Mozilla/5.0" }
+    });
 
-  const $ = cheerio.load(data);
+    const $ = cheerio.load(data);
 
-  const live = [];
-  const upcoming = [];
+    const live = [];
+    const upcoming = [];
 
-  /* 🔴 LIVE */
-  $(".liveMatch-container").each((_, el) => {
-    const team1 = $(el).find(".matchTeamName").first().text().trim();
-    const team2 = $(el).find(".matchTeamName").last().text().trim();
-    const score = $(el).find(".matchScore").text().trim();
+    /* 🔴 LIVE */
+    $(".matchList .liveMatch-container").each((_, el) => {
+      const team1 = $(el).find(".matchTeamName").first().text().trim();
+      const team2 = $(el).find(".matchTeamName").last().text().trim();
+      const score = $(el).find(".matchScore").text().trim();
 
-    if (team1 && team2) {
-      live.push({ team1, team2, score });
-    }
-  });
+      if (team1 && team2) {
+        live.push({
+          team1,
+          team2,
+          score: score || "0-0"
+        });
+      }
+    });
 
-  /* ⏱ FUTUROS */
-  $(".upcomingMatch").each((_, el) => {
-    const team1 = $(el).find(".matchTeamName").first().text().trim();
-    const team2 = $(el).find(".matchTeamName").last().text().trim();
-    const time = $(el).find(".matchTime").text().trim();
+    /* ⏱ UPCOMING */
+    $(".upcomingMatchesContainer .upcomingMatch").each((_, el) => {
+      const team1 = $(el).find(".matchTeamName").first().text().trim();
+      const team2 = $(el).find(".matchTeamName").last().text().trim();
+      const time = $(el).find(".matchTime").text().trim();
 
-    if (team1 && team2) {
-      upcoming.push({ team1, team2, time });
-    }
-  });
+      if (team1 && team2) {
+        upcoming.push({
+          team1,
+          team2,
+          time: time || "--:--"
+        });
+      }
+    });
 
-  return {
-    live: live.slice(0, 2),
-    upcoming: upcoming.slice(0, 3)
-  };
+    return {
+      live: live.slice(0, 2),
+      upcoming: upcoming.slice(0, 3)
+    };
+
+  } catch (err) {
+    console.log("Erro HLTV:", err.message);
+
+    return {
+      live: [],
+      upcoming: []
+    };
+  }
 }
 
-/* ROTA */
+/* ===== API ===== */
 app.get("/api/cs", async (req, res) => {
-  try {
-    const data = await fetchMatches();
-    res.json(data);
-  } catch {
-    res.json({ live: [], upcoming: [] });
-  }
+  const data = await fetchMatches();
+  res.json(data);
 });
 
+/* ===== START ===== */
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("rodando"));
+app.listen(PORT, () => {
+  console.log("Servidor rodando na porta", PORT);
+});
