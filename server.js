@@ -5,40 +5,49 @@ const cors = require("cors");
 const app = express();
 app.use(cors());
 
-/* 🔑 SUA API KEY (troque depois por uma nova) */
-const API_KEY = JAHyrkMMbX2fOe6Z2SWdqvlim4dvA-oldqtkTujuXsQoS6UyUBQ;
+/* 🔑 SUA API KEY */
+const API_KEY = "JAHyrkMMbX2fOe6Z2SWdqvlim4dvA-oldqtkTujuXsQoS6UyUBQ";
 
 /* ===== BUSCAR PARTIDAS ===== */
 async function fetchMatches() {
   try {
     const { data } = await axios.get(
-      `https://api.pandascore.co/csgo/matches?sort=begin_at&per_page=10&token=${API_KEY}`
+      `https://api.pandascore.co/csgo/matches?per_page=20&token=${API_KEY}`
     );
 
     const live = [];
     const upcoming = [];
 
     data.forEach(match => {
-      const team1 = match.opponents[0]?.opponent?.name;
-      const team2 = match.opponents[1]?.opponent?.name;
+      const opponents = match.opponents || [];
+
+      if (opponents.length < 2) return;
+
+      const team1 = opponents[0]?.opponent?.name;
+      const team2 = opponents[1]?.opponent?.name;
 
       if (!team1 || !team2) return;
 
       /* 🔴 AO VIVO */
       if (match.status === "running") {
+        const score1 = match.results?.[0]?.score ?? 0;
+        const score2 = match.results?.[1]?.score ?? 0;
+
         live.push({
           team1,
           team2,
-          score: `${match.results[0]?.score || 0}-${match.results[1]?.score || 0}`
+          score: `${score1}-${score2}`
         });
       }
 
-      /* ⏱ FUTUROS */
+      /* ⏱ FUTURO */
       if (match.status === "not_started") {
-        const time = new Date(match.begin_at).toLocaleTimeString("pt-BR", {
-          hour: "2-digit",
-          minute: "2-digit"
-        });
+        const time = match.begin_at
+          ? new Date(match.begin_at).toLocaleTimeString("pt-BR", {
+              hour: "2-digit",
+              minute: "2-digit"
+            })
+          : "--:--";
 
         upcoming.push({
           team1,
@@ -55,15 +64,11 @@ async function fetchMatches() {
 
   } catch (err) {
     console.log("Erro PandaScore:", err.message);
-
-    return {
-      live: [],
-      upcoming: []
-    };
+    return { live: [], upcoming: [] };
   }
 }
 
-/* ===== ROTA API ===== */
+/* ===== ROTA ===== */
 app.get("/api/cs", async (req, res) => {
   const data = await fetchMatches();
   res.json(data);
